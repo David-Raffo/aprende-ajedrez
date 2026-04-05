@@ -1,72 +1,45 @@
-// Utility functions for playing chess sound effects
+type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
 
-// Simple sound effect using Web Audio API
-export const playMoveSound = () => {
+let audioContext: AudioContext | null = null;
+
+const getAudioContext = () => {
+  if (!audioContext) {
+    const AudioContextClass = window.AudioContext ?? (window as WindowWithWebkitAudio).webkitAudioContext;
+    if (!AudioContextClass) return null;
+    audioContext = new AudioContextClass();
+  }
+  if (audioContext.state === 'suspended') void audioContext.resume();
+  return audioContext;
+};
+
+const playTone = (frequencies: [number, number][], volume: number, duration: number, ramp = true) => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Create a pleasant "click" sound
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
-    
-    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.1);
+    const context = getAudioContext();
+    if (!context) return;
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+
+    const [[firstFrequency], ...rest] = frequencies;
+    oscillator.frequency.setValueAtTime(firstFrequency, now);
+    for (const [frequency, at] of rest) {
+      if (ramp) oscillator.frequency.exponentialRampToValueAtTime(frequency, now + at);
+      else oscillator.frequency.setValueAtTime(frequency, now + at);
+    }
+
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    oscillator.start(now);
+    oscillator.stop(now + duration);
   } catch (error) {
     console.warn('Audio not supported or blocked:', error);
   }
 };
 
-export const playCaptureSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Create a more dramatic "capture" sound
-    oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.15);
-    
-    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.15);
-  } catch (error) {
-    console.warn('Audio not supported or blocked:', error);
-  }
-};
+export const playMoveSound = () => playTone([[800, 0], [400, 0.1]], 0.1, 0.1);
 
-export const playCheckSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    // Create an alert "check" sound
-    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.1);
-    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.2);
-    
-    gainNode.gain.setValueAtTime(0.12, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-  } catch (error) {
-    console.warn('Audio not supported or blocked:', error);
-  }
-};
+export const playCaptureSound = () => playTone([[600, 0], [200, 0.15]], 0.15, 0.15);
+
+export const playCheckSound = () => playTone([[1000, 0], [800, 0.1], [1000, 0.2]], 0.12, 0.3, false);

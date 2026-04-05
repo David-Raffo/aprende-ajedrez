@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
-import { Position, Board, Piece, PieceColor } from '@/types/chess';
+import { useState } from 'react';
+import type React from 'react';
+import { Position, Board, PieceColor } from '@/types/chess';
 import { PIECE_SYMBOLS } from '@/utils/chessLogic';
 import { cn } from '@/lib/utils';
 
@@ -7,122 +8,120 @@ interface ChessBoardProps {
   board: Board;
   selectedSquare: Position | null;
   validMoves: Position[];
+  lastMove?: { from: Position; to: Position } | null;
+  checkSquare?: Position | null;
   onSquareClick: (position: Position) => void;
+  onMove: (from: Position, to: Position) => void;
   isPlayerTurn: boolean;
   playerColor: PieceColor;
 }
 
-export const ChessBoard = ({ 
-  board, 
-  selectedSquare, 
-  validMoves, 
-  onSquareClick, 
-  isPlayerTurn,
-  playerColor 
-}: ChessBoardProps) => {
-  const [draggedPiece, setDraggedPiece] = useState<{ piece: Piece; from: Position } | null>(null);
-  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+const samePosition = (a: Position | null | undefined, b: Position) => !!a && a.row === b.row && a.col === b.col;
 
-  const isLightSquare = (row: number, col: number) => (row + col) % 2 === 0;
-  
-  const isSelected = (row: number, col: number) => 
-    selectedSquare?.row === row && selectedSquare?.col === col;
-  
-  const isValidMove = (row: number, col: number) =>
+const squareName = (row: number, col: number) => `${String.fromCharCode(97 + col)}${8 - row}`;
+
+export const ChessBoard = ({
+  board,
+  selectedSquare,
+  validMoves,
+  lastMove,
+  checkSquare,
+  onSquareClick,
+  onMove,
+  isPlayerTurn,
+  playerColor
+}: ChessBoardProps) => {
+  const [dragFrom, setDragFrom] = useState<Position | null>(null);
+
+  const isValidTarget = (row: number, col: number) =>
     validMoves.some(move => move.row === row && move.col === col);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, position: Position) => {
-    if (!isPlayerTurn) return;
-    
+  const handleDragStart = (event: React.DragEvent, position: Position) => {
     const piece = board[position.row][position.col];
-    if (piece && piece.color === playerColor) {
-      setDraggedPiece({ piece, from: position });
-      setDragPosition({ x: e.clientX, y: e.clientY });
-      onSquareClick(position);
+    if (!isPlayerTurn || !piece || piece.color !== playerColor) {
+      event.preventDefault();
+      return;
     }
-  }, [board, isPlayerTurn, onSquareClick]);
+    event.dataTransfer.effectAllowed = 'move';
+    setDragFrom(position);
+    if (!samePosition(selectedSquare, position)) onSquareClick(position);
+  };
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (draggedPiece) {
-      setDragPosition({ x: e.clientX, y: e.clientY });
-    }
-  }, [draggedPiece]);
-
-  const handleMouseUp = useCallback((e: React.MouseEvent, position?: Position) => {
-    if (draggedPiece && position) {
-      onSquareClick(position);
-    }
-    setDraggedPiece(null);
-    setDragPosition(null);
-  }, [draggedPiece, onSquareClick]);
-
-  // Touch handlers para dispositivos móviles - interacción simple con tap
-  const handleTouchStart = useCallback((e: React.TouchEvent, position: Position) => {
-    e.preventDefault();
-    // Comportamiento simple: solo hacer click en la casilla
-    onSquareClick(position);
-  }, [onSquareClick]);
+  const handleDrop = (event: React.DragEvent, position: Position) => {
+    event.preventDefault();
+    if (dragFrom && !samePosition(dragFrom, position)) onMove(dragFrom, position);
+    setDragFrom(null);
+  };
 
   const renderSquare = (row: number, col: number) => {
     const piece = board[row][col];
     const position = { row, col };
-    const light = isLightSquare(row, col);
-    const selected = isSelected(row, col);
-    const validMove = isValidMove(row, col);
-    const isDragging = draggedPiece?.from.row === row && draggedPiece?.from.col === col;
+    const light = (row + col) % 2 === 0;
+    const selected = samePosition(selectedSquare, position);
+    const validTarget = isValidTarget(row, col);
+    const inLastMove = samePosition(lastMove?.from, position) || samePosition(lastMove?.to, position);
+    const inCheck = samePosition(checkSquare, position);
+    const ownPiece = piece?.color === playerColor;
 
     return (
       <div
         key={`${row}-${col}`}
+        role="button"
+        tabIndex={isPlayerTurn ? 0 : -1}
+        aria-label={`${squareName(row, col)}${piece ? `, ${piece.color === 'white' ? 'blanca' : 'negra'} ${piece.type}` : ''}`}
         className={cn(
-          // Base styles - tamaño fijo para todos los cuadrados
           "relative flex min-h-0 min-w-0 items-center justify-center aspect-square touch-manipulation",
           "cursor-pointer transition-[filter] duration-150 select-none overflow-hidden",
-          // Colores de fondo
           light ? "bg-chess-light-square" : "bg-chess-dark-square",
-          // Estados especiales
+          inLastMove && "after:absolute after:inset-0 after:bg-chess-highlight/25 after:pointer-events-none",
+          inCheck && "bg-chess-danger/80",
           selected && "ring-4 ring-chess-highlight ring-inset z-10",
-          !isPlayerTurn && piece?.color === playerColor && "cursor-not-allowed opacity-75",
-          // Hover solo en casillas vacías o clickeables
-          ((!piece && isPlayerTurn) || (piece?.color === playerColor && isPlayerTurn)) && "hover:brightness-110"
+          !isPlayerTurn && ownPiece && "cursor-not-allowed opacity-75",
+          isPlayerTurn && (!piece || ownPiece || validTarget) && "hover:brightness-110"
         )}
-        onMouseDown={(e) => handleMouseDown(e, position)}
-        onMouseUp={(e) => handleMouseUp(e, position)}
-        onMouseMove={handleMouseMove}
-        onTouchStart={(e) => handleTouchStart(e, position)}
+        onClick={() => onSquareClick(position)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSquareClick(position);
+          }
+        }}
+        onDragOver={(event) => {
+          if (dragFrom) event.preventDefault();
+        }}
+        onDrop={(event) => handleDrop(event, position)}
       >
-        {/* Indicador de movimiento válido */}
-        {validMove && (
+        {validTarget && (
           <div className={cn(
             "absolute inset-0 flex items-center justify-center pointer-events-none",
-            piece 
-              ? "border-[5px] border-chess-highlight/80" 
-              : ""
+            piece && "border-[5px] border-chess-highlight/80"
           )}>
-            {!piece && (
-              <div className="h-[22%] w-[22%] rounded-full bg-chess-highlight/80 shadow-highlight" />
-            )}
+            {!piece && <div className="h-[22%] w-[22%] rounded-full bg-chess-highlight/80 shadow-highlight" />}
           </div>
         )}
 
-        {/* Pieza */}
-        {piece && !isDragging && (
-          <div className={cn(
-            "chess-piece z-10 text-[clamp(2rem,9.5vw,4.75rem)] transition-transform duration-150",
-            piece.color === 'white' ? "chess-piece-light" : "chess-piece-dark",
-            selected && "scale-110",
-          )}>
+        {piece && (
+          <div
+            draggable={isPlayerTurn && ownPiece}
+            onDragStart={(event) => handleDragStart(event, position)}
+            onDragEnd={() => setDragFrom(null)}
+            className={cn(
+              "chess-piece z-10 text-[clamp(2rem,9.5vw,4.75rem)] transition-transform duration-150",
+              piece.color === 'white' ? "chess-piece-light" : "chess-piece-dark",
+              selected && "scale-110",
+              samePosition(dragFrom, position) && "opacity-40"
+            )}
+          >
             {PIECE_SYMBOLS[piece.color][piece.type]}
           </div>
         )}
-        
-        {/* Coordenadas */}
-        {col === 0 && (
+
+        {col === (playerColor === 'white' ? 0 : 7) && (
           <div className={cn(
             "font-notation absolute left-1 top-0.5 text-[9px] font-semibold pointer-events-none sm:text-[10px]",
             light ? "text-chess-dark-square/70" : "text-chess-light-square/70"
           )}>
-            {playerColor === 'white' ? 8 - row : row + 1}
+            {8 - row}
           </div>
         )}
         {row === (playerColor === 'white' ? 7 : 0) && (
@@ -139,40 +138,15 @@ export const ChessBoard = ({
 
   return (
     <div className="relative w-full max-w-[min(76vh,680px)]">
-      <div 
-        className="grid aspect-square w-full grid-cols-8 grid-rows-8 overflow-hidden rounded-sm border-[6px] border-secondary shadow-board bg-gradient-board"
-        onMouseMove={handleMouseMove}
-        onMouseUp={() => handleMouseUp}
-        onMouseLeave={() => {
-          setDraggedPiece(null);
-          setDragPosition(null);
-        }}
-      >
+      <div className="grid aspect-square w-full grid-cols-8 grid-rows-8 overflow-hidden rounded-sm border-[6px] border-secondary shadow-board bg-gradient-board">
         {Array.from({ length: 8 }, (_, rowIndex) =>
           Array.from({ length: 8 }, (_, colIndex) => {
-            // Invertir el tablero cuando el jugador juega con negras
             const row = playerColor === 'white' ? rowIndex : 7 - rowIndex;
-            const col = colIndex;
+            const col = playerColor === 'white' ? colIndex : 7 - colIndex;
             return renderSquare(row, col);
           })
         )}
       </div>
-
-      {/* Pieza arrastrada */}
-      {draggedPiece && dragPosition && (
-        <div
-          className="chess-piece fixed pointer-events-none z-50 text-6xl"
-          style={{
-            left: dragPosition.x - 32,
-            top: dragPosition.y - 32,
-            transform: 'scale(1.15)'
-          }}
-        >
-          <span className={draggedPiece.piece.color === 'white' ? "chess-piece-light" : "chess-piece-dark"}>
-            {PIECE_SYMBOLS[draggedPiece.piece.color][draggedPiece.piece.type]}
-          </span>
-        </div>
-      )}
     </div>
   );
 };

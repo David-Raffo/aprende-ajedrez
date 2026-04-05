@@ -1,27 +1,31 @@
-import { GameState } from '@/types/chess';
+import { GameState, PieceColor } from '@/types/chess';
 import { Badge } from '@/components/ui/badge';
 import { Crown, AlertTriangle, CircleDot } from 'lucide-react';
 
 interface GameStatusProps {
   gameState: GameState;
   isPlayerTurn: boolean;
+  isAiThinking: boolean;
+  playerColor: PieceColor;
 }
 
-export const GameStatus = ({ gameState, isPlayerTurn }: GameStatusProps) => {
+export const GameStatus = ({ gameState, isPlayerTurn, isAiThinking, playerColor }: GameStatusProps) => {
+  const playerWon = gameState.winner === playerColor;
+
   const getStatusMessage = () => {
     if (gameState.isCheckmate) {
-      return `¡Jaque mate! ${gameState.winner === 'white' ? 'Tú' : 'La IA'} gana`;
+      return playerWon ? '¡Jaque mate! Has ganado' : 'Jaque mate. La IA gana';
     }
     if (gameState.isStalemate) {
       return '¡Tablas por ahogado!';
     }
     if (gameState.isCheck) {
-      return `¡Jaque! ${gameState.currentPlayer === 'white' ? 'Tu rey' : 'El rey de la IA'} está en peligro`;
+      return gameState.currentPlayer === playerColor ? '¡Jaque! Tu rey está en peligro' : '¡Jaque al rey rival!';
     }
     if (isPlayerTurn) {
       return 'Tu turno';
     }
-    return 'Turno de la IA...';
+    return isAiThinking ? 'La IA está pensando…' : 'Turno de la IA';
   };
 
   const getStatusIcon = () => {
@@ -36,7 +40,7 @@ export const GameStatus = ({ gameState, isPlayerTurn }: GameStatusProps) => {
 
   const getStatusVariant = () => {
     if (gameState.isCheckmate) {
-      return gameState.winner === 'white' ? 'default' : 'destructive';
+      return playerWon ? 'default' : 'destructive';
     }
     if (gameState.isCheck) {
       return 'destructive';

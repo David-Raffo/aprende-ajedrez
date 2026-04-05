@@ -12,7 +12,10 @@ const Index = () => {
     aiDifficulty,
     isAiThinking,
     playerColor,
+    lastMove,
+    checkSquare,
     handleSquareClick,
+    tryMove,
     startNewGame,
     setAiDifficulty,
     changePlayerColor,
@@ -39,8 +42,10 @@ const Index = () => {
         <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[250px_minmax(520px,1fr)_320px]">
           <aside className="order-3 flex w-full flex-col gap-4 xl:order-1">
             <GameStatus 
-              gameState={gameState} 
-              isPlayerTurn={isPlayerTurn && !isAiThinking} 
+              gameState={gameState}
+              isPlayerTurn={isPlayerTurn}
+              isAiThinking={isAiThinking}
+              playerColor={playerColor}
             />
             <GameControls
               onNewGame={startNewGame}
@@ -64,8 +69,11 @@ const Index = () => {
               board={gameState.board}
               selectedSquare={gameState.selectedSquare}
               validMoves={gameState.validMoves}
+              lastMove={lastMove}
+              checkSquare={checkSquare}
               onSquareClick={handleSquareClick}
-              isPlayerTurn={isPlayerTurn && !isAiThinking}
+              onMove={tryMove}
+              isPlayerTurn={isPlayerTurn}
               playerColor={playerColor}
             />
             <div className="flex w-full max-w-[min(76vh,680px)] items-center justify-between border border-border bg-card/70 px-3 py-2.5">
@@ -100,10 +108,10 @@ const Index = () => {
               <div className="min-h-40 p-5">
                 {gameState.moveHistory.length > 0 ? (
                 <div className="font-notation space-y-1.5 text-xs max-h-48 overflow-y-auto">
-                  {gameState.moveHistory.slice(-5).map((move, index) => (
-                    <div key={index} className="flex justify-between border-b border-border/60 py-2 last:border-0">
+                  {gameState.moveHistory.slice(-5).map((move, index, recent) => (
+                    <div key={gameState.moveHistory.length - recent.length + index} className="flex justify-between border-b border-border/60 py-2 last:border-0">
                       <span className="text-muted-foreground">
-                        {gameState.moveHistory.length - 4 + index}.
+                        {gameState.moveHistory.length - recent.length + index + 1}.
                       </span>
                       <span>
                         {String.fromCharCode(97 + move.from.col)}{8 - move.from.row} → {' '}
