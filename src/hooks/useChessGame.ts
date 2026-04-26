@@ -1,18 +1,20 @@
 import { useState, useCallback, useEffect } from 'react';
-import { GameState, Position, PieceColor, Board, Piece } from '@/types/chess';
+import { toast } from 'sonner';
+import { GameState, Move, Position, PieceColor, PromotionPiece } from '@/types/chess';
 import {
-  createInitialBoard,
-  isValidMove,
-  makeMove,
-  getPossibleMoves,
-  isInCheck,
-  isCheckmate,
-  isStalemate,
-  boardToFen,
-  findKing
+  applyMove as applyChessMove,
+  createInitialPosition,
+  findKing,
+  getLegalMoves,
+  getPositionStatus,
+  isLegalMove,
+  isPromotionMove,
+  opposite,
+  positionToFen,
+  samePosition,
+  squareName
 } from '@/utils/chessLogic';
 import { getBestMove } from '@/utils/chessAI';
-import { toast } from 'sonner';
 import { playMoveSound, playCaptureSound, playCheckSound } from '@/utils/audioUtils';
 import { MoveAnalysis } from '@/components/CoachPanel';
 
@@ -20,16 +22,18 @@ const COACH_WEBHOOK_URL = import.meta.env.VITE_COACH_WEBHOOK_URL as string | und
 
 export const isCoachEnabled = Boolean(COACH_WEBHOOK_URL);
 
-const opposite = (color: PieceColor): PieceColor => (color === 'white' ? 'black' : 'white');
-
-const squareName = (position: Position) => `${String.fromCharCode(97 + position.col)}${8 - position.row}`;
+const DRAW_MESSAGES = {
+  'stalemate': 'Tablas por ahogado',
+  'insufficient-material': 'Tablas por material insuficiente',
+  'fifty-moves': 'Tablas por la regla de los 50 movimientos'
+} as const;
 
 const createInitialState = (): GameState => ({
-  board: createInitialBoard(),
-  currentPlayer: 'white',
+  position: createInitialPosition(),
   isCheck: false,
   isCheckmate: false,
   isStalemate: false,
+  drawReason: null,
   gameOver: false,
   winner: null,
   moveHistory: [],
@@ -37,53 +41,45 @@ const createInitialState = (): GameState => ({
   validMoves: []
 });
 
-const legalMovesFrom = (board: Board, position: Position) =>
-  getPossibleMoves(board, position).filter(move => isValidMove(board, position, move));
-
 export const useChessGame = () => {
   const [playerColor, setPlayerColor] = useState<PieceColor>('white');
   const [gameState, setGameState] = useState<GameState>(createInitialState);
   const [aiDifficulty, setAiDifficulty] = useState(3);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [pendingPromotion, setPendingPromotion] = useState<{ from: Position; to: Position } | null>(null);
   const [lastMoveAnalysis, setLastMoveAnalysis] = useState<MoveAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const { position } = gameState;
   const aiColor = opposite(playerColor);
-  const isPlayerTurn = !gameState.gameOver && gameState.currentPlayer === playerColor && !isAiThinking;
+  const isPlayerTurn = !gameState.gameOver && position.turn === playerColor && !isAiThinking && !pendingPromotion;
 
-  const analyzeMove = useCallback(async (
-    from: Position,
-    to: Position,
-    capturedPiece: Piece | null,
-    prevBoard: Board,
-    newBoard: Board,
-    movedPiece: Piece
-  ) => {
+  const analyzeMove = useCallback(async (move: Move, fenBefore: string, fenAfter: string) => {
     if (!COACH_WEBHOOK_URL) return;
     setIsAnalyzing(true);
-
-    const fromSquare = squareName(from);
-    const toSquare = squareName(to);
-    const moveData = {
-      from: fromSquare,
-      to: toSquare,
-      piece: movedPiece.type,
-      pieceColor: movedPiece.color,
-      move: `${movedPiece.color === 'white' ? 'blancas' : 'negras'} ${movedPiece.type} ${fromSquare}${capturedPiece ? 'x' : '-'}${toSquare}`,
-      captured: capturedPiece !== null,
-      capturedPiece: capturedPiece ? capturedPiece.type : null,
-      playerColor,
-      turn: opposite(movedPiece.color),
-      fenBefore: boardToFen(prevBoard, movedPiece.color),
-      fenAfter: boardToFen(newBoard, opposite(movedPiece.color)),
-      timestamp: new Date().toISOString()
-    };
+    const fromSquare = squareName(move.from);
+    const toSquare = squareName(move.to);
 
     try {
       const response = await fetch(COACH_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(moveData),
+        body: JSON.stringify({
+          from: fromSquare,
+          to: toSquare,
+          san: move.san,
+          piece: move.piece.type,
+          pieceColor: move.piece.color,
+          move: `${move.piece.color === 'white' ? 'blancas' : 'negras'} ${move.san}`,
+          captured: Boolean(move.capturedPiece),
+          capturedPiece: move.capturedPiece?.type ?? null,
+          promotion: move.promotion ?? null,
+          playerColor,
+          turn: opposite(move.piece.color),
+          fenBefore,
+          fenAfter,
+          timestamp: new Date().toISOString()
+        }),
       });
       if (!response.ok) throw new Error(`Coach responded ${response.status}`);
       const analysis = await response.json();
@@ -106,55 +102,35 @@ export const useChessGame = () => {
     }
   }, [playerColor]);
 
-  const applyMove = useCallback((from: Position, to: Position) => {
-    const board = gameState.board;
-    const piece = board[from.row][from.col];
-    if (!piece) return;
-    const captured = board[to.row][to.col];
-    const newBoard = makeMove(board, from, to);
-    const nextPlayer = opposite(piece.color);
-    const check = isInCheck(newBoard, nextPlayer);
-    const checkmate = isCheckmate(newBoard, nextPlayer);
-    const stalemate = isStalemate(newBoard, nextPlayer);
+  const commitMove = useCallback((from: Position, to: Position, promotion: PromotionPiece = 'queen') => {
+    const { position: next, move } = applyChessMove(position, from, to, promotion);
+    const status = getPositionStatus(next);
+    const gameOver = status.isCheckmate || status.drawReason !== null;
 
     setGameState(prev => ({
       ...prev,
-      board: newBoard,
-      currentPlayer: nextPlayer,
-      isCheck: check,
-      isCheckmate: checkmate,
-      isStalemate: stalemate,
-      gameOver: checkmate || stalemate,
-      winner: checkmate ? piece.color : null,
-      moveHistory: [...prev.moveHistory, { from, to, piece, capturedPiece: captured || undefined }],
+      position: next,
+      ...status,
+      gameOver,
+      winner: status.isCheckmate ? move.piece.color : null,
+      moveHistory: [...prev.moveHistory, move],
       selectedSquare: null,
       validMoves: []
     }));
 
-    if (checkmate) {
-      toast.success(piece.color === playerColor ? '¡Jaque mate! Has ganado' : 'Jaque mate. La IA gana');
-    } else if (stalemate) {
-      toast.info('Tablas por ahogado');
-    } else if (check) {
-      playCheckSound();
-    } else if (captured) {
-      playCaptureSound();
-    } else {
-      playMoveSound();
+    if (status.isCheckmate) {
+      toast.success(move.piece.color === playerColor ? '¡Jaque mate! Has ganado' : 'Jaque mate. La IA gana');
+    } else if (status.drawReason) {
+      toast.info(DRAW_MESSAGES[status.drawReason]);
     }
+    if (status.isCheck) playCheckSound();
+    else if (move.capturedPiece) playCaptureSound();
+    else playMoveSound();
 
-    if (piece.color === playerColor) {
-      analyzeMove(from, to, captured, board, newBoard, piece);
+    if (move.piece.color === playerColor) {
+      analyzeMove(move, positionToFen(position), positionToFen(next));
     }
-  }, [gameState.board, playerColor, analyzeMove]);
-
-  const selectSquare = useCallback((position: Position) => {
-    setGameState(prev => ({
-      ...prev,
-      selectedSquare: position,
-      validMoves: legalMovesFrom(prev.board, position)
-    }));
-  }, []);
+  }, [position, playerColor, analyzeMove]);
 
   const clearSelection = useCallback(() => {
     setGameState(prev => ({ ...prev, selectedSquare: null, validMoves: [] }));
@@ -162,41 +138,48 @@ export const useChessGame = () => {
 
   const tryMove = useCallback((from: Position, to: Position) => {
     if (!isPlayerTurn) return;
-    const piece = gameState.board[from.row][from.col];
-    if (!piece || piece.color !== playerColor) return;
-    if (isValidMove(gameState.board, from, to)) {
-      applyMove(from, to);
-    } else {
+    if (!isLegalMove(position, from, to)) {
       toast.error('Movimiento no válido');
       clearSelection();
+      return;
     }
-  }, [isPlayerTurn, gameState.board, playerColor, applyMove, clearSelection]);
+    if (isPromotionMove(position.board, from, to)) {
+      setPendingPromotion({ from, to });
+      return;
+    }
+    commitMove(from, to);
+  }, [isPlayerTurn, position, commitMove, clearSelection]);
 
-  const handleSquareClick = useCallback((position: Position) => {
+  const choosePromotion = useCallback((piece: PromotionPiece | null) => {
+    if (pendingPromotion && piece) commitMove(pendingPromotion.from, pendingPromotion.to, piece);
+    else clearSelection();
+    setPendingPromotion(null);
+  }, [pendingPromotion, commitMove, clearSelection]);
+
+  const handleSquareClick = useCallback((square: Position) => {
     if (!isPlayerTurn) return;
-    const { selectedSquare, board } = gameState;
-    const clickedPiece = board[position.row][position.col];
+    const clickedPiece = position.board[square.row][square.col];
 
     if (clickedPiece && clickedPiece.color === playerColor) {
-      if (selectedSquare && selectedSquare.row === position.row && selectedSquare.col === position.col) {
+      if (samePosition(gameState.selectedSquare, square)) {
         clearSelection();
       } else {
-        selectSquare(position);
+        setGameState(prev => ({ ...prev, selectedSquare: square, validMoves: getLegalMoves(prev.position, square) }));
       }
       return;
     }
 
-    if (selectedSquare) tryMove(selectedSquare, position);
-  }, [isPlayerTurn, gameState, playerColor, selectSquare, clearSelection, tryMove]);
+    if (gameState.selectedSquare) tryMove(gameState.selectedSquare, square);
+  }, [isPlayerTurn, position, playerColor, gameState.selectedSquare, clearSelection, tryMove]);
 
   useEffect(() => {
-    if (gameState.gameOver || gameState.currentPlayer !== aiColor) return;
+    if (gameState.gameOver || position.turn !== aiColor) return;
     let cancelled = false;
     setIsAiThinking(true);
     const timer = setTimeout(() => {
       if (cancelled) return;
-      const bestMove = getBestMove(gameState.board, aiColor, aiDifficulty);
-      if (!cancelled && bestMove) applyMove(bestMove.from, bestMove.to);
+      const bestMove = getBestMove(position, aiDifficulty);
+      if (!cancelled && bestMove) commitMove(bestMove.from, bestMove.to);
       setIsAiThinking(false);
     }, 400 + Math.random() * 600);
     return () => {
@@ -204,21 +187,18 @@ export const useChessGame = () => {
       clearTimeout(timer);
       setIsAiThinking(false);
     };
-  }, [gameState.board, gameState.currentPlayer, gameState.gameOver, aiColor, aiDifficulty, applyMove]);
+  }, [position, gameState.gameOver, aiColor, aiDifficulty, commitMove]);
 
   const startNewGame = useCallback((color: PieceColor = playerColor) => {
     setPlayerColor(color);
     setGameState(createInitialState());
+    setPendingPromotion(null);
     setLastMoveAnalysis(null);
     setIsAnalyzing(false);
   }, [playerColor]);
 
-  const changePlayerColor = useCallback((color: PieceColor) => {
-    startNewGame(color);
-  }, [startNewGame]);
-
   const lastMove = gameState.moveHistory[gameState.moveHistory.length - 1] ?? null;
-  const checkSquare = gameState.isCheck ? findKing(gameState.board, gameState.currentPlayer) : null;
+  const checkSquare = gameState.isCheck ? findKing(position.board, position.turn) : null;
 
   return {
     gameState,
@@ -228,11 +208,13 @@ export const useChessGame = () => {
     playerColor,
     lastMove,
     checkSquare,
+    pendingPromotion,
     handleSquareClick,
     tryMove,
+    choosePromotion,
     startNewGame: () => startNewGame(),
     setAiDifficulty,
-    changePlayerColor,
+    changePlayerColor: (color: PieceColor) => startNewGame(color),
     lastMoveAnalysis,
     isAnalyzing
   };

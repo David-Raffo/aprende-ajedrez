@@ -2,6 +2,7 @@ import { ChessBoard } from '@/components/ChessBoard';
 import { GameStatus } from '@/components/GameStatus';
 import { GameControls } from '@/components/GameControls';
 import { CoachPanel } from '@/components/CoachPanel';
+import { PromotionDialog } from '@/components/PromotionDialog';
 import { useChessGame } from '@/hooks/useChessGame';
 import { Bot, Crown, Sparkles, UserRound } from 'lucide-react';
 
@@ -14,8 +15,10 @@ const Index = () => {
     playerColor,
     lastMove,
     checkSquare,
+    pendingPromotion,
     handleSquareClick,
     tryMove,
+    choosePromotion,
     startNewGame,
     setAiDifficulty,
     changePlayerColor,
@@ -66,7 +69,7 @@ const Index = () => {
               <span className="font-notation text-xs text-muted-foreground">{playerColor === 'white' ? 'NEGRAS' : 'BLANCAS'}</span>
             </div>
             <ChessBoard
-              board={gameState.board}
+              board={gameState.position.board}
               selectedSquare={gameState.selectedSquare}
               validMoves={gameState.validMoves}
               lastMove={lastMove}
@@ -75,7 +78,9 @@ const Index = () => {
               onMove={tryMove}
               isPlayerTurn={isPlayerTurn}
               playerColor={playerColor}
-            />
+            >
+              {pendingPromotion && <PromotionDialog color={playerColor} onSelect={choosePromotion} />}
+            </ChessBoard>
             <div className="flex w-full max-w-[min(76vh,680px)] items-center justify-between border border-border bg-card/70 px-3 py-2.5">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground"><UserRound className="h-4 w-4" /></div>
@@ -113,11 +118,7 @@ const Index = () => {
                       <span className="text-muted-foreground">
                         {gameState.moveHistory.length - recent.length + index + 1}.
                       </span>
-                      <span>
-                        {String.fromCharCode(97 + move.from.col)}{8 - move.from.row} → {' '}
-                        {String.fromCharCode(97 + move.to.col)}{8 - move.to.row}
-                        {move.capturedPiece && ' ×'}
-                      </span>
+                      <span>{move.san}</span>
                     </div>
                   ))}
                 </div>) : <p className="flex min-h-28 items-center justify-center text-center text-sm text-muted-foreground">La notación aparecerá al comenzar la partida.</p>}

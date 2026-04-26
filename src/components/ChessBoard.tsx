@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type React from 'react';
 import { Position, Board, PieceColor } from '@/types/chess';
-import { PIECE_SYMBOLS } from '@/utils/chessLogic';
+import { PIECE_SYMBOLS, samePosition, squareName } from '@/utils/chessLogic';
 import { cn } from '@/lib/utils';
 
 interface ChessBoardProps {
@@ -14,11 +14,8 @@ interface ChessBoardProps {
   onMove: (from: Position, to: Position) => void;
   isPlayerTurn: boolean;
   playerColor: PieceColor;
+  children?: React.ReactNode;
 }
-
-const samePosition = (a: Position | null | undefined, b: Position) => !!a && a.row === b.row && a.col === b.col;
-
-const squareName = (row: number, col: number) => `${String.fromCharCode(97 + col)}${8 - row}`;
 
 export const ChessBoard = ({
   board,
@@ -29,7 +26,8 @@ export const ChessBoard = ({
   onSquareClick,
   onMove,
   isPlayerTurn,
-  playerColor
+  playerColor,
+  children
 }: ChessBoardProps) => {
   const [dragFrom, setDragFrom] = useState<Position | null>(null);
 
@@ -68,7 +66,7 @@ export const ChessBoard = ({
         key={`${row}-${col}`}
         role="button"
         tabIndex={isPlayerTurn ? 0 : -1}
-        aria-label={`${squareName(row, col)}${piece ? `, ${piece.color === 'white' ? 'blanca' : 'negra'} ${piece.type}` : ''}`}
+        aria-label={`${squareName(position)}${piece ? `, ${piece.color === 'white' ? 'blanca' : 'negra'} ${piece.type}` : ''}`}
         className={cn(
           "relative flex min-h-0 min-w-0 items-center justify-center aspect-square touch-manipulation",
           "cursor-pointer transition-[filter] duration-150 select-none overflow-hidden",
@@ -147,6 +145,7 @@ export const ChessBoard = ({
           })
         )}
       </div>
+      {children}
     </div>
   );
 };

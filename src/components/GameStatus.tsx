@@ -1,4 +1,10 @@
 import { GameState, PieceColor } from '@/types/chess';
+
+const DRAW_LABELS = {
+  'stalemate': 'Tablas por ahogado',
+  'insufficient-material': 'Tablas por material insuficiente',
+  'fifty-moves': 'Tablas por la regla de los 50 movimientos'
+} as const;
 import { Badge } from '@/components/ui/badge';
 import { Crown, AlertTriangle, CircleDot } from 'lucide-react';
 
@@ -16,11 +22,11 @@ export const GameStatus = ({ gameState, isPlayerTurn, isAiThinking, playerColor 
     if (gameState.isCheckmate) {
       return playerWon ? '¡Jaque mate! Has ganado' : 'Jaque mate. La IA gana';
     }
-    if (gameState.isStalemate) {
-      return '¡Tablas por ahogado!';
+    if (gameState.drawReason) {
+      return DRAW_LABELS[gameState.drawReason];
     }
     if (gameState.isCheck) {
-      return gameState.currentPlayer === playerColor ? '¡Jaque! Tu rey está en peligro' : '¡Jaque al rey rival!';
+      return gameState.position.turn === playerColor ? '¡Jaque! Tu rey está en peligro' : '¡Jaque al rey rival!';
     }
     if (isPlayerTurn) {
       return 'Tu turno';
@@ -45,7 +51,7 @@ export const GameStatus = ({ gameState, isPlayerTurn, isAiThinking, playerColor 
     if (gameState.isCheck) {
       return 'destructive';
     }
-    if (gameState.isStalemate) {
+    if (gameState.drawReason) {
       return 'secondary';
     }
     return isPlayerTurn ? 'default' : 'secondary';
@@ -58,7 +64,7 @@ export const GameStatus = ({ gameState, isPlayerTurn, isAiThinking, playerColor 
           <h2 className="text-xl">Estado</h2>
           <Badge variant={getStatusVariant()} className="flex items-center gap-1.5 rounded-sm">
             {getStatusIcon()}
-            {gameState.currentPlayer === 'white' ? 'Blancas' : 'Negras'}
+            {gameState.position.turn === 'white' ? 'Blancas' : 'Negras'}
           </Badge>
         </div>
         
