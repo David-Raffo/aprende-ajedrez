@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { GameState, Move, Position, PieceColor, PromotionPiece } from '@/types/chess';
 import {
@@ -14,7 +14,7 @@ import {
   samePosition,
   squareName
 } from '@/utils/chessLogic';
-import { getBestMove } from '@/utils/chessAI';
+import { createAiClient } from '@/utils/aiClient';
 import { playMoveSound, playCaptureSound, playCheckSound } from '@/utils/audioUtils';
 import { MoveAnalysis } from '@/components/CoachPanel';
 
@@ -27,6 +27,8 @@ const DRAW_MESSAGES = {
   'insufficient-material': 'Tablas por material insuficiente',
   'fifty-moves': 'Tablas por la regla de los 50 movimientos'
 } as const;
+
+const AI_MIN_DELAY_MS = 450;
 
 const createInitialState = (): GameState => ({
   position: createInitialPosition(),
@@ -49,6 +51,7 @@ export const useChessGame = () => {
   const [pendingPromotion, setPendingPromotion] = useState<{ from: Position; to: Position } | null>(null);
   const [lastMoveAnalysis, setLastMoveAnalysis] = useState<MoveAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const aiClientRef = useRef<ReturnType<typeof createAiClient> | null>(null);
 
   const { position } = gameState;
   const aiColor = opposite(playerColor);
@@ -172,19 +175,23 @@ export const useChessGame = () => {
     if (gameState.selectedSquare) tryMove(gameState.selectedSquare, square);
   }, [isPlayerTurn, position, playerColor, gameState.selectedSquare, clearSelection, tryMove]);
 
+  useEffect(() => () => aiClientRef.current?.dispose(), []);
+
   useEffect(() => {
     if (gameState.gameOver || position.turn !== aiColor) return;
+    aiClientRef.current ??= createAiClient();
     let cancelled = false;
     setIsAiThinking(true);
-    const timer = setTimeout(() => {
+    const request = aiClientRef.current.request(position, aiDifficulty);
+    const minDelay = new Promise(resolve => setTimeout(resolve, AI_MIN_DELAY_MS));
+    Promise.all([request.promise, minDelay]).then(([move]) => {
       if (cancelled) return;
-      const bestMove = getBestMove(position, aiDifficulty);
-      if (!cancelled && bestMove) commitMove(bestMove.from, bestMove.to);
       setIsAiThinking(false);
-    }, 400 + Math.random() * 600);
+      if (move) commitMove(move.from, move.to);
+    });
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      request.cancel();
       setIsAiThinking(false);
     };
   }, [position, gameState.gameOver, aiColor, aiDifficulty, commitMove]);
