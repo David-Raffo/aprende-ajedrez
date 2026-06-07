@@ -3,8 +3,9 @@ import { GameStatus } from '@/components/GameStatus';
 import { GameControls } from '@/components/GameControls';
 import { CoachPanel } from '@/components/CoachPanel';
 import { PromotionDialog } from '@/components/PromotionDialog';
-import { useChessGame } from '@/hooks/useChessGame';
-import { Bot, Crown, Sparkles, UserRound } from 'lucide-react';
+import { MoveHistory } from '@/components/MoveHistory';
+import { isCoachEnabled, useChessGame } from '@/hooks/useChessGame';
+import { Bot, Crown, UserRound } from 'lucide-react';
 
 const Index = () => {
   const {
@@ -64,7 +65,7 @@ const Index = () => {
             <div className="flex w-full max-w-[min(76vh,680px)] items-center justify-between border border-border bg-card/70 px-3 py-2.5">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-muted-foreground"><Bot className="h-4 w-4" /></div>
-                <div><p className="text-sm font-semibold">Entrenador IA</p><p className="text-xs text-muted-foreground">Nivel {aiDifficulty} de 5</p></div>
+                <div><p className="text-sm font-semibold">Rival IA</p><p className="text-xs text-muted-foreground">Nivel {aiDifficulty} de 5</p></div>
               </div>
               <span className="font-notation text-xs text-muted-foreground">{playerColor === 'white' ? 'NEGRAS' : 'BLANCAS'}</span>
             </div>
@@ -90,40 +91,16 @@ const Index = () => {
             </div>
 
             <div className="mt-2 w-full xl:hidden">
-              <CoachPanel 
-                lastAnalysis={lastMoveAnalysis}
-                isAnalyzing={isAnalyzing}
-              />
+              <CoachPanel lastAnalysis={lastMoveAnalysis} isAnalyzing={isAnalyzing} enabled={isCoachEnabled} />
             </div>
           </section>
 
           <aside className="order-2 flex w-full flex-col gap-4 xl:order-3">
             <div className="hidden xl:block">
-              <CoachPanel 
-                lastAnalysis={lastMoveAnalysis}
-                isAnalyzing={isAnalyzing}
-              />
+              <CoachPanel lastAnalysis={lastMoveAnalysis} isAnalyzing={isAnalyzing} enabled={isCoachEnabled} />
             </div>
             
-            <section className="border border-border bg-card/70">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                <h2 className="text-xl">Últimos movimientos</h2>
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
-              <div className="min-h-40 p-5">
-                {gameState.moveHistory.length > 0 ? (
-                <div className="font-notation space-y-1.5 text-xs max-h-48 overflow-y-auto">
-                  {gameState.moveHistory.slice(-5).map((move, index, recent) => (
-                    <div key={gameState.moveHistory.length - recent.length + index} className="flex justify-between border-b border-border/60 py-2 last:border-0">
-                      <span className="text-muted-foreground">
-                        {gameState.moveHistory.length - recent.length + index + 1}.
-                      </span>
-                      <span>{move.san}</span>
-                    </div>
-                  ))}
-                </div>) : <p className="flex min-h-28 items-center justify-center text-center text-sm text-muted-foreground">La notación aparecerá al comenzar la partida.</p>}
-              </div>
-            </section>
+            <MoveHistory moves={gameState.moveHistory} />
           </aside>
         </div>
         

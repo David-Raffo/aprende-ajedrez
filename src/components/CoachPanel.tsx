@@ -11,9 +11,10 @@ export interface MoveAnalysis {
 interface CoachPanelProps {
   lastAnalysis: MoveAnalysis | null;
   isAnalyzing: boolean;
+  enabled?: boolean;
 }
 
-export const CoachPanel = ({ lastAnalysis, isAnalyzing }: CoachPanelProps) => {
+export const CoachPanel = ({ lastAnalysis, isAnalyzing, enabled = true }: CoachPanelProps) => {
   const getRatingColor = (rating: string) => {
     switch (rating) {
       case 'excelente': return 'bg-success text-foreground';
@@ -82,7 +83,16 @@ export const CoachPanel = ({ lastAnalysis, isAnalyzing }: CoachPanelProps) => {
           </div>
         )}
 
-        {!lastAnalysis && !isAnalyzing && (
+        {!enabled && (
+          <div className="flex min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
+            <Brain className="mb-3 h-9 w-9 opacity-40" />
+            <p className="max-w-60 text-sm leading-6">
+              El entrenador no está configurado. Define <code className="font-notation text-xs text-primary">VITE_COACH_WEBHOOK_URL</code> para recibir análisis de cada jugada.
+            </p>
+          </div>
+        )}
+
+        {enabled && !lastAnalysis && !isAnalyzing && (
           <div className="flex min-h-40 flex-col items-center justify-center text-center text-muted-foreground">
             <Brain className="mb-3 h-9 w-9 opacity-40" />
             <p className="max-w-52 text-sm leading-6">Tu análisis aparecerá después de la primera jugada.</p>
