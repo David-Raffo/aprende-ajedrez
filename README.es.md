@@ -33,7 +33,7 @@ El motor de ajedrez y la IA están escritos desde cero en TypeScript, sin librer
 ### Partida
 - **Reglas completas**: enroque, captura al paso, coronación con selector de pieza, jaque, jaque mate y tablas por ahogado, material insuficiente y regla de los 50 movimientos.
 - **Juega con blancas o negras**, con el tablero girado hacia tu lado.
-- **Haz clic o arrastra** las piezas; se resaltan los destinos legales, la última jugada y el rey en jaque.
+- **Haz clic o arrastra** las piezas. Se resaltan los destinos legales, la última jugada y el rey en jaque.
 - **Lista de movimientos en notación algebraica** (`Nf3`, `exd6`, `O-O`, `e8=Q+`).
 - Sonidos de movimiento, captura y jaque generados con la Web Audio API.
 
@@ -91,7 +91,7 @@ npm install
 npm run dev
 ```
 
-Abre <http://localhost:8080>. El juego funciona sin configuración; solo el entrenador necesita un webhook.
+Abre <http://localhost:8080>. El juego funciona sin configuración y solo el entrenador necesita un webhook.
 
 ### Webhook del entrenador
 

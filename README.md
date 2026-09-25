@@ -35,7 +35,7 @@ The chess engine and the AI are written from scratch in TypeScript with no chess
 ### Playing
 - **Complete rules**: castling, en passant, promotion with a piece picker, check, checkmate and draws by stalemate, insufficient material and the fifty-move rule.
 - **Play as white or black**, with the board flipped to your side.
-- **Click or drag** pieces; legal destinations, the last move and a king in check are highlighted.
+- **Click or drag** pieces. Legal destinations, the last move and a king in check are highlighted.
 - **Move list in standard algebraic notation** (`Nf3`, `exd6`, `O-O`, `e8=Q+`).
 - Move, capture and check sounds generated with the Web Audio API.
 
@@ -93,7 +93,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:8080>. The game works without any configuration; only the coach needs a webhook.
+Open <http://localhost:8080>. The game works without any configuration, only the coach needs a webhook.
 
 ### Coach webhook
 
