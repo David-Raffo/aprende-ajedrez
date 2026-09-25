@@ -7,6 +7,8 @@
 **Juega al ajedrez contra una IA integrada y recibe comentarios de un entrenador después de cada jugada.**
 Reglas completas, cinco niveles de dificultad y un motor que funciona en un Web Worker, todo en el navegador.
 
+### [▶ Demo en vivo](https://chesswithraffo.lovable.app/)
+
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)

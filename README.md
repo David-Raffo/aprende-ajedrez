@@ -7,6 +7,8 @@
 **Play chess against a built-in AI and get feedback on every move from a coach.**
 Full chess rules, five difficulty levels and an engine that runs in a Web Worker, all in the browser.
 
+### [▶ Live demo](https://chesswithraffo.lovable.app/)
+
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
